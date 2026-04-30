@@ -17,7 +17,7 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**필수 파일 2개 — 팀원한테 받기:**
+**필수 파일 2개 — 구글 드라이브공유:**
 - `checkpoints/epoch_0200.pt`
 - `NanumGothic.ttf` → 프로젝트 루트에 넣기
 
