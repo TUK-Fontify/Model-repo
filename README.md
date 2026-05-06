@@ -58,6 +58,7 @@ image_bytes = buf.getvalue()
 프로젝트/
 ├── infer.py
 ├── NanumGothic.ttf
+├── Requirements.txt
 ├── checkpoints/
 │   └── epoch_0200.pt
 └── new_font_test/            # 자동 생성
