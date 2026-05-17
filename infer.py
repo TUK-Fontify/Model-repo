@@ -22,6 +22,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
 from PIL import Image, ImageDraw, ImageFont
+import requests
+from urllib.parse import urlparse
+from io import BytesIO # 메모리에서 URL 처리
 
 # ──────────────────────────────────────────────
 # 고정 설정
@@ -254,22 +257,34 @@ class GlyphGAN:
         return results
 
     def generate_from_ttf(self, ttf_path: str, font_size: int = 100):
-        font_name = Path(ttf_path).stem
+        parsed = urlparse(ttf_path) # URL인지 로컬 경로인지 분석
+        is_url = parsed.scheme in ("http", "https") # URL이면 True, 로컬이면 False
+
+        if is_url:
+            font_name = Path(parsed.path).stem # 파일명만 추출
+            response = requests.get(ttf_path) # 인터넷에서 TTF 파일 다운로드
+            response.raise_for_status() # 다운로드 실패
+            font_data = BytesIO(response.content)  # 다운로드한 바이트 데이터를 메모리에 올림(디스크 저장 X)
+        else:
+            font_name = Path(ttf_path).stem
+            font_data = ttf_path  # 로컬이면 경로 그대로
+
         input_dir = Path(f"./new_font_test/{font_name}/input")
         output_dir = Path(f"./new_font_test/{font_name}/output")
 
-        self._render_eng_glyphs(ttf_path, input_dir, font_size)
+        self._render_eng_glyphs(font_data, input_dir, font_size)
         results = self.generate_and_save(str(input_dir), str(output_dir))
         return results
 
     @staticmethod
-    def _render_eng_glyphs(ttf_path: str, out_dir: str, font_size: int = 100):
+    def _render_eng_glyphs(ttf_source, out_dir: str, font_size: int = 100):
         """ttf → 영어 A-Z, a-z 글리프 png 생성"""
         ENG_POOL = list("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        font = ImageFont.truetype(str(ttf_path), size=font_size)
+        # BytesIO든 로컬 경로든 truetype()에 그냥 넘기면 됨
+        font = ImageFont.truetype(ttf_source, size=font_size)  # 경로든 BytesIO든 둘 다 OK
         for ch in ENG_POOL:
             img = Image.new("L", (IMG_SIZE, IMG_SIZE), color=255)
             draw = ImageDraw.Draw(img)
@@ -324,24 +339,27 @@ if __name__ == "__main__":
     CKPT_PATH = str(BASE_DIR / "checkpoints/epoch_0200.pt")
     NANUM_PATH = str(BASE_DIR / "NanumGothic.ttf")
 
-    # ── TTF 파일 선택 다이얼로그
-    root = tk.Tk()
-    root.withdraw()  # 메인 창 숨기기
-    ttf_path = filedialog.askopenfilename(
-        title="변환할 폰트 TTF 파일 선택",
-        filetypes=[("폰트 파일", "*.ttf *.otf"), ("모든 파일", "*.*")]
-    )
+    # # ── TTF 파일 선택 다이얼로그
+    # root = tk.Tk()
+    # root.withdraw()  # 메인 창 숨기기
+    # ttf_path = filedialog.askopenfilename(
+    #     title="변환할 폰트 TTF 파일 선택",
+    #     filetypes=[("폰트 파일", "*.ttf *.otf"), ("모든 파일", "*.*")]
+    # )
+    #
+    # if not ttf_path:
+    #     print("파일 선택 취소")
+    #     exit()
 
-    if not ttf_path:
-        print("파일 선택 취소")
-        exit()
+    # 테스트할 TTF URL 직접 입력
+    ttf_url = "https://fontify-986995923828-ap-northeast-2-an.s3.ap-northeast-2.amazonaws.com/english_only_google_fonts/abeezee/ABeeZee-Italic.ttf"
 
     # ── 결과 저장 폴더 = ttf 파일명과 같은 이름으로 자동 생성
-    font_name = Path(ttf_path).stem
+    font_name = Path(ttf_url).stem
     out_dir = f"./output_{font_name}"
 
-    print(f"선택된 폰트: {ttf_path}")
+    print(f"선택된 폰트: {ttf_url}")
     print(f"결과 저장 위치: {out_dir}")
 
     gan = GlyphGAN(CKPT_PATH, NANUM_PATH)
-    gan.generate_from_ttf(ttf_path)
+    gan.generate_from_ttf(ttf_url)
